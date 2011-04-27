@@ -36,7 +36,8 @@ usage of this module might look like this:
 import cgi
 import hashlib
 import time
-import urllib
+import urllib2 
+from urllib import urlencode
 
 # Find a JSON parser
 try:
@@ -167,11 +168,11 @@ class GraphAPI(object):
                 post_args["access_token"] = self.access_token
             else:
                 args["access_token"] = self.access_token
-        post_data = None if post_args is None else urllib.urlencode(post_args)
-        urllib._urlopener = urllib.FancyURLopener()
-        urllib._urlopener.addheader('Connection', 'close')
-        file = urllib.urlopen("https://graph.facebook.com/" + path + "?" +
-                              urllib.urlencode(args), post_data)
+        post_data = None if post_args is None else urlencode(post_args)
+        #urllib._urlopener = urllib.FancyURLopener()
+        #urllib._urlopener.addheader('Connection', 'close')
+        file = urllib2.urlopen("https://graph.facebook.com/" + path + "?" +
+                              urlencode(args), post_data)
         try:
             response = _parse_json(file.read())
         finally:
