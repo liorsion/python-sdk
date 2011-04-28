@@ -169,8 +169,6 @@ class GraphAPI(object):
             else:
                 args["access_token"] = self.access_token
         post_data = None if post_args is None else urlencode(post_args)
-        #urllib._urlopener = urllib.FancyURLopener()
-        #urllib._urlopener.addheader('Connection', 'close')
         file = urllib2.urlopen("https://graph.facebook.com/" + path + "?" +
                               urlencode(args), post_data)
         try:
