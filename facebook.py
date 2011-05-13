@@ -160,7 +160,7 @@ class GraphAPI(object):
         """Uploads an image using multipart/form-data
         image=File like object for the image
         message=Caption for your image
-        album_id=None posts to /me/photos which uses or creates and uses 
+        album_id=None posts to /me/photos which uses or creates and uses
         an album for your application.
         """
         object_id = album_id or "me"
@@ -187,7 +187,7 @@ class GraphAPI(object):
                                     response["error"]["message"])
         except ValueError:
             response = data
-            
+
         return response
 
     # based on: http://code.activestate.com/recipes/146306/
@@ -205,7 +205,7 @@ class GraphAPI(object):
             if not value:
                 continue
             L.append('--' + BOUNDARY)
-            if hasattr(value, 'read') and callable(value.read): 
+            if hasattr(value, 'read') and callable(value.read):
                 filename = getattr(value,'name','%s.jpg' % key)
                 L.append('Content-Disposition: form-data; name="%s"; filename="%s"' % (key, filename))
                 L.append('Content-Type: image/jpeg')
@@ -239,7 +239,7 @@ class GraphAPI(object):
         post_data = None if post_args is None else urllib.urlencode(post_args)
         file = urllib2.urlopen("https://graph.facebook.com/" + path + "?" +
                               urllib.urlencode(args), post_data)
-                              
+
         try:
             fileInfo = file.info()
             if fileInfo.maintype == 'text':
@@ -292,7 +292,7 @@ class GraphAPI(object):
             raise GraphAPIError(response["error"]["type"],
                                 response["error"]["message"])
         return response
-        
+
 
     def fql(self, query, args=None, post_args=None):
         """FQL query.
@@ -324,7 +324,7 @@ class GraphAPI(object):
             raise e
         finally:
             file.close()
-              
+
         return response
 
 
@@ -361,34 +361,41 @@ def get_user_from_cookie(cookies, app_id, app_secret):
         return None
 
 def parse_signed_request(signed_request, app_secret):
-    """Return dictionary with signed request data."""
+    """ Return dictionary with signed request data.
+
+    We return a dictionary containing the information in the signed_request. This will
+    include a user_id if the user has authorised your application, as well as any
+    information requested in the scope.
+
+    If the signed_request is malformed or corrupted, False is returned.
+    """
     try:
         l = signed_request.split('.', 2)
         encoded_sig = str(l[0])
         payload = str(l[1])
+        sig = base64.urlsafe_b64decode(encoded_sig + "=" * ((4 - len(encoded_sig) % 4) % 4))
+        data = base64.urlsafe_b64decode(payload + "=" * ((4 - len(payload) % 4) % 4))
     except IndexError:
-        raise ValueError("'signed_request' malformed")
-    
-    sig = base64.urlsafe_b64decode(encoded_sig + "=" * ((4 - len(encoded_sig) % 4) % 4))
-    data = base64.urlsafe_b64decode(payload + "=" * ((4 - len(payload) % 4) % 4))
+        return False # raise ValueError('signed_request malformed')
+    except TypeError:
+        return False # raise ValueError('signed_request had corrupted payload')
 
     data = _parse_json(data)
+    if data.get('algorithm', '').upper() != 'HMAC-SHA256':
+        return False # raise ValueError('signed_request used unknown algorithm')
 
-    if data.get('algorithm').upper() != 'HMAC-SHA256':
-        raise ValueError("'signed_request' is using an unknown algorithm")
-    else:
-        expected_sig = hmac.new(app_secret, msg=payload, digestmod=hashlib.sha256).digest()
-
+    expected_sig = hmac.new(app_secret, msg=payload, digestmod=hashlib.sha256).digest()
     if sig != expected_sig:
-        raise ValueError("'signed_request' signature mismatch")
-    else:
-        return data
-  
+        return False # raise ValueError('signed_request had signature mismatch')
+
+    return data
+
 def auth_url(app_id, canvas_url, perms = None):
-    url = "https://www.facebook.com/dialog/oauth?client_id=%s&redirect_uri=%s" % (app_id, canvas_url)
+    url = "https://www.facebook.com/dialog/oauth?"
+    kvps = {'client_id': app_id, 'redirect_uri': canvas_url}
     if perms:
-        url += "scope=%s" % (",".join(perms))
-    return url
+        kvps['scope'] = ",".join(perms)
+    return url + urllib.urlencode(kvps)
 
 def get_app_access_token(application_id, application_secret):
     """
@@ -401,13 +408,12 @@ def get_app_access_token(application_id, application_secret):
     args = {'grant_type':'client_credentials',
             'client_id':application_id,
             'client_secret':application_secret}
-    
+
     file = urllib2.urlopen("https://graph.facebook.com/oauth/access_token?" +
                               urllib.urlencode(args))
-              
+
     try:
         result = file.read().split("=")[1]
     finally:
         file.close()
-              
     return result
